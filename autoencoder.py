@@ -1,18 +1,13 @@
 import copy
-
-import numpy as np
-import pandas as pd
-
 import eval
+import numpy as np
 
 
-# Applies the sigmoid function to each element in the input matrix
 def sigmoid_function(o):
-
     r = copy.deepcopy(o)
-    for i in range(np.shape(o)[0]):
-        for j in range(np.shape(o)[1]):
-            r[i][j] = 1 / (1 + np.exp(-1 * o[i][j]))
+
+    for i in range(len(o)):
+        r[i] = 1 / (1 + np.exp(-1 * o[i]))
 
     return r
 
@@ -81,10 +76,10 @@ class AutoEncodedNetwork:
             encoded_out = []
             decoded_out = []
             for index in range(len(X_trn)):
-                X_index = np.array([X_trn[index]])
+                X_index = X_trn[index]
                 net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_index)
-                encoded_out += [out_h1[0]]
-                decoded_out += [out_o[0]]
+                encoded_out += [out_h1]
+                decoded_out += [out_o]
 
             # Get the mean of all the distances of the decoded features to the training features
             mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
@@ -114,23 +109,27 @@ class AutoEncodedNetwork:
             X_trn = df_X_trn.values
 
             # Get the encoded values of X
-            net_encoded, out_encoded, net_decoded, out_decoded = self.autoencoder_forward(X_trn)
+            encoded_input = []
+            for index in range(len(X_trn)):
+                net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_trn[index])
+                encoded_input += [out_h1]
 
             # Modify the weights here
-            self.forward_and_back_propagate(np.array(net_encoded), y_trn, verbose=False)
+            self.forward_and_back_propagate(encoded_input, y_trn, verbose=False)
 
             # Now check the performance
-            net_h1, out_h1, net_o, out_o = self.network_forward(net_encoded)
+            h1 = np.dot(encoded_input, self.weights_encoding_hidden1)
+            out = np.dot(h1, self.weights_hidden1_output)
 
             # Calculate score
             if (self.type == 'Classifier'):
-                score = eval.eval_softmax(y_trn, net_o)
+                score = eval.eval_softmax(y_trn, out)
                 if score > last_score:
                     last_score = score
                 else:
                     optimal_score_reached = True
             else:
-                score = eval.eval_mse(y_trn, net_o)[0]
+                score = eval.eval_mse(y_trn, out)[0]
 
                 if score < last_score:
                     last_score = score
@@ -169,22 +168,31 @@ class AutoEncodedNetwork:
         # For each sample from the training data
         for index in range(len(X_trn)):
 
-            X_index = np.array([X_trn[index]])
-            y_index = y_trn[index]
+            # Calculate updated weights in a new matrix - we want the originals for further back-propagation
+            delta_weights_input_encoding = np.zeros((self.num_columns, self.num_encoding))
+            delta_weights_encoding_decoding = np.zeros((self.num_encoding, self.num_columns))
 
             # First forward thru the network
-            net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_index)
+            net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_trn[index])
 
-            # Now Back-propagate
-            deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_index
-            delta_h1 = np.multiply(np.dot(error, self.weights_encoding_decoding.T), deriv_h1)
-            delta_weights_encoding_decoding = np.dot(out_h1.T, error)
-            delta_weights_input_encoding = np.dot(X_index.T, delta_h1)
+            # Back Propagate Decoding -> Encoding
+            deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
+            for h in range(self.num_encoding):
+                for o in range(self.num_columns):
+                    delta_weights_encoding_decoding[h][o] = -1 * deriv_and_error[o] * out_h1[h]
+
+            # Back propagate Encoding -> Input
+            error_h1 = np.zeros(self.num_encoding)
+            for h in range(len(error_h1)):
+                error_h1[h] = np.dot(deriv_and_error, self.weights_encoding_decoding[h, :])
+            deriv_out_h1 = (out_h1 * (1 - out_h1))
+            for i in range(self.num_encoding):
+                for h in range(self.num_hidden1):
+                    delta_weights_input_encoding[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index, i]
 
             # Now that the entire training set is run through, update
-            self.weights_input_encoding = self.weights_input_encoding - (self.encode_learn_rate * delta_weights_input_encoding)
-            self.weights_encoding_decoding = self.weights_encoding_decoding - (self.encode_learn_rate * delta_weights_encoding_decoding)
+            self.weights_input_encoding -= self.encode_learn_rate * delta_weights_input_encoding
+            self.weights_encoding_decoding -= self.encode_learn_rate * delta_weights_encoding_decoding
 
     # Conducts the forward and back propagation thru the 1-layer neural network fed by the encoder
     def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
@@ -192,19 +200,28 @@ class AutoEncodedNetwork:
         # For each sample from the training data
         for index in range(len(X_trn)):
 
-            X_index = np.array([X_trn[index]])
-            y_index = y_trn[index]
+            # Calculate updated weights in a new matrix - we want the originals for further back-propagation
+            delta_weights_encoding_hidden1 = np.zeros((self.num_encoding, self.num_hidden1))
+            delta_weights_hidden1_output = np.zeros((self.num_hidden1, self.num_outputs))
 
             # First forward thru the network
-            net_h1, out_h1, net_o, out_o = self.network_forward(X_index)
+            net_h1, out_h1, net_o, out_o = self.network_forward(X_trn[index])
 
-            # Now Back-propagate
-            deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_index
-            delta_h1 = np.multiply(np.dot(error, self.weights_hidden1_output.T), deriv_h1)
-            delta_weights_hidden1_output = np.dot(out_h1.T, error)
-            delta_weights_encoding_hidden1 = np.dot(X_index.T, delta_h1)
+            # Back Propagate Output -> Hidden Layer 1
+            deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
+            for h in range(self.num_hidden1):
+                for o in range(self.num_outputs):
+                    delta_weights_hidden1_output[h][o] = -1 * deriv_and_error[o] * out_h1[h]
+
+            # Back propagate Hidden Layer 1 -> Encoding
+            error_h1 = np.zeros(self.num_hidden1)
+            for h in range(len(error_h1)):
+                error_h1[h] = np.dot(deriv_and_error, self.weights_hidden1_output[h, :])
+            deriv_out_h1 = (out_h1 * (1 - out_h1))
+            for i in range(self.num_encoding):
+                for h in range(self.num_hidden1):
+                    delta_weights_encoding_hidden1[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index][i]
 
             # Now that the entire training set is run through, update
-            self.weights_encoding_hidden1 = self.weights_encoding_hidden1 - (self.learn_rate * delta_weights_encoding_hidden1)
-            self.weights_hidden1_output = self.weights_hidden1_output - (self.learn_rate * delta_weights_hidden1_output)
+            self.weights_encoding_hidden1 -= self.learn_rate * delta_weights_encoding_hidden1
+            self.weights_hidden1_output -= self.learn_rate * delta_weights_hidden1_output
