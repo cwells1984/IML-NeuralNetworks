@@ -16,9 +16,9 @@ def sigmoid_function(o):
     return r
 
 
-class AutoEncodedClassifier:
+class AutoEncodedNetwork:
 
-    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3):
+    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3, type="Classifier"):
         self.encode_learn_rate = encode_learn_rate
         self.learn_rate = learn_rate
         self.num_columns = 0
@@ -28,6 +28,7 @@ class AutoEncodedClassifier:
         self.weights_encoding_decoding = None
         self.weights_encoding_hidden1 = None
         self.weights_hidden1_output = None
+        self.type = type
 
     # Sets the network weights based on the training set
     def fit(self, df, label_columns):
@@ -80,7 +81,11 @@ class AutoEncodedClassifier:
 
         # now with the encoded_out of the encoding layer and its corresponding labels, run through a feed forward network
         optimal_score_reached = False
-        last_score = -1
+        if self.type == 'Classifier':
+            last_score = -1
+        else:
+            last_score = np.inf
+
         while optimal_score_reached == False:
 
             # Modify the weights here
@@ -91,177 +96,19 @@ class AutoEncodedClassifier:
             out = np.dot(h1, self.weights_hidden1_output)
 
             # Calculate score
-            score = eval.eval_softmax(y_trn, out)
-
-            if score > last_score:
-                last_score = score
+            if (self.type == 'Classifier'):
+                score = eval.eval_softmax(y_trn, out)
+                if score > last_score:
+                    last_score = score
+                else:
+                    optimal_score_reached = True
             else:
-                optimal_score_reached = True
+                score = eval.eval_mse(y_trn, out)[0]
 
-    # Using the existing weights, make predictions with a testing set
-    def predict(self, df, label_columns):
-
-        # Create a matrix of values for the features in the test set and the labels
-        df_X_tst = copy.deepcopy(df)
-        y_truth = df_X_tst[label_columns].values
-        for label_column in label_columns:
-            df_X_tst = df_X_tst.loc[:, df_X_tst.columns != label_column]
-        X_tst = df_X_tst.values
-
-        # Now feed them through the network to generate the predictions
-        y_pred = []
-        for index in range(len(X_tst)):
-            X_index = np.array([X_tst[index]])
-            out_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
-            out_o = np.dot(out_h1, self.weights_encoding_decoding)
-            y_pred += [out_o[0]]
-
-        return y_pred, y_truth
-
-    # Sets the weights based on the training set and makes predictions based on the test set
-    def fit_predict(self, df_trn, df_tst, label_columns):
-        self.fit(df_trn, label_columns)
-        y_pred, y_truth = self.predict(df_tst, label_columns)
-        return y_pred, y_truth
-
-    # Conducts the forward and back propagation thru the autoencoder
-    def autoencode_propagate(self, X_trn, y_trn, verbose=False):
-
-        # For each sample from the training data
-        for index in range(len(X_trn)):
-
-            X_index = np.array([X_trn[index]])
-            y_index = y_trn[index]
-
-            # Forward X -> Encoding
-            net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
-            out_h1 = sigmoid_function(net_h1)
-
-            # Encoding -> Decoding
-            net_o = np.dot(out_h1, self.weights_encoding_decoding)
-            out_o = sigmoid_function(net_o)
-
-            # Now Back-propagate
-            deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_index
-            delta_h1 = np.multiply(np.dot(error, self.weights_encoding_decoding.T), deriv_h1)
-            delta_weights_encoding_decoding = np.dot(out_h1.T, error)
-            delta_weights_input_encoding = np.dot(X_index.T, delta_h1)
-
-            # Now that the entire training set is run through, update
-            self.weights_input_encoding = self.weights_input_encoding - (self.encode_learn_rate * delta_weights_input_encoding)
-            self.weights_encoding_decoding = self.weights_encoding_decoding - (self.encode_learn_rate * delta_weights_encoding_decoding)
-
-    # Conducts the forward and back propagation thru the 1-layer neural network fed by the encoder
-    def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
-
-        # For each sample from the training data
-        for index in range(len(X_trn)):
-
-            X_index = np.array([X_trn[index]])
-            y_index = y_trn[index]
-
-            # Encoding -> Hidden Layer 1
-            net_h1 = np.array(np.dot(X_index, self.weights_encoding_hidden1))
-            out_h1 = sigmoid_function(net_h1)
-
-            # Hidden Layer 1 -> Output
-            net_o = np.dot(out_h1, self.weights_hidden1_output)
-            out_o = sigmoid_function(net_o)
-
-            # Now Back-propagate
-            deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_index
-            delta_h1 = np.multiply(np.dot(error, self.weights_hidden1_output.T), deriv_h1)
-            delta_weights_hidden1_output = np.dot(out_h1.T, error)
-            delta_weights_encoding_hidden1 = np.dot(X_index.T, delta_h1)
-
-            # Now that the entire training set is run through, update
-            self.weights_encoding_hidden1 = self.weights_encoding_hidden1 - (self.learn_rate * delta_weights_encoding_hidden1)
-            self.weights_hidden1_output = self.weights_hidden1_output - (self.learn_rate * delta_weights_hidden1_output)
-
-
-class AutoEncodedRegressor:
-
-    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3):
-        self.encode_learn_rate = encode_learn_rate
-        self.learn_rate = learn_rate
-        self.num_columns = 0
-        self.num_encoding = num_encoding
-        self.num_hidden1 = num_hidden1
-        self.weights_input_encoding = None
-        self.weights_encoding_decoding = None
-        self.weights_encoding_hidden1 = None
-        self.weights_hidden1_output = None
-
-    # Sets the network weights based on the training set
-    def fit(self, df, label_columns):
-
-        # Initialize the weights
-        self.num_columns = len(df.columns) - len(label_columns)
-        self.num_outputs = len(label_columns)
-        self.weights_input_encoding = np.random.uniform(size=(self.num_columns, self.num_encoding), low=-.01, high=.01)
-        self.weights_encoding_decoding = np.random.uniform(size=(self.num_encoding, self.num_columns), low=-.01, high=.01)
-        self.weights_encoding_hidden1 = np.random.uniform(size=(self.num_encoding, self.num_hidden1), low=-.01, high=.01)
-        self.weights_hidden1_output = np.random.uniform(size=(self.num_hidden1, self.num_outputs), low=-.01, high=.01)
-
-        # First, auto-encode until the loss reaches its minimum value
-        optimal_distance_reached = False
-        last_distance = np.inf
-        while optimal_distance_reached == False:
-
-            # After shuffling the rows in the dataframe, extract the matrix of input data X and output data y
-            df_X_trn = copy.deepcopy(df)
-            df_X_trn = df_X_trn.sample(frac=1)
-
-            y_trn = df_X_trn[label_columns].values
-
-            for label_column in label_columns:
-                df_X_trn = df_X_trn.loc[:, df_X_trn.columns != label_column]
-            X_trn = df_X_trn.values
-
-            # Modify the weights here
-            self.autoencode_propagate(X_trn, X_trn, verbose=False)
-
-            # Now check the performance
-            encoded_out = []
-            decoded_out = []
-            for index in range(len(X_trn)):
-                X_index = np.array([X_trn[index]])
-                net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
-                out_h1 = sigmoid_function(net_h1)
-                encoded_out += [out_h1[0]]
-                net_o = np.dot(out_h1, self.weights_encoding_decoding)
-                out_o = sigmoid_function(net_o)
-                decoded_out += [out_o[0]]
-
-            # Get the mean of all the distances of the decoded features to the training features
-            mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
-
-            if mean_distances < last_distance:
-                last_distance = mean_distances
-            else:
-                optimal_distance_reached = True
-
-        # now with the encoded_out of the encoding layer and its corresponding labels, run through a feed forward network
-        optimal_mse_reached = False
-        last_mse = np.inf
-        while optimal_mse_reached == False:
-
-            # Modify the weights here
-            self.forward_and_back_propagate(np.array(encoded_out), y_trn, verbose=False)
-
-            # Now check the performance
-            h1 = np.dot(encoded_out, self.weights_encoding_hidden1)
-            out = np.dot(h1, self.weights_hidden1_output)
-
-            # Calculate MSE
-            mse = eval.eval_mse(y_trn, out)[0]
-
-            if mse < last_mse:
-                last_mse = mse
-            else:
-                optimal_mse_reached = True
+                if score < last_score:
+                    last_score = score
+                else:
+                    optimal_score_reached = True
 
     # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_columns):
