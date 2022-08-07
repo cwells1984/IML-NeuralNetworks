@@ -204,7 +204,7 @@ class AutoEncodedRegressor:
         self.weights_encoding_hidden1 = np.random.uniform(size=(self.num_encoding, self.num_hidden1), low=-.01, high=.01)
         self.weights_hidden1_output = np.random.uniform(size=(self.num_hidden1, self.num_outputs), low=-.01, high=.01)
 
-        # First AutoEncoding...
+        # First, auto-encode until the loss reaches its minimum value
         optimal_distance_reached = False
         last_distance = np.inf
         while optimal_distance_reached == False:
@@ -234,6 +234,7 @@ class AutoEncodedRegressor:
                 out_o = sigmoid_function(net_o)
                 decoded_out += [out_o[0]]
 
+            # Get the mean of all the distances of the decoded features to the training features
             mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
 
             if mean_distances < last_distance:
@@ -255,6 +256,7 @@ class AutoEncodedRegressor:
             h1 = np.dot(encoded_out, self.weights_encoding_hidden1)
             out = np.dot(h1, self.weights_hidden1_output)
 
+            # Calculate MSE
             mse = eval.eval_mse(y_trn, out)[0]
 
             if mse < last_mse:
@@ -262,33 +264,34 @@ class AutoEncodedRegressor:
             else:
                 optimal_mse_reached = True
 
+    # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_columns):
 
+        # Create a matrix of values for the features in the test set and the labels
         df_X_tst = copy.deepcopy(df)
         y_truth = df_X_tst[label_columns].values
         for label_column in label_columns:
             df_X_tst = df_X_tst.loc[:, df_X_tst.columns != label_column]
         X_tst = df_X_tst.values
 
+        # Now feed them through the network to generate the predictions
         y_pred = []
         for index in range(len(X_tst)):
-            net_h1 = np.dot(X_tst[index], self.weights_input_encoding)
-            out_h1 = net_h1
-            net_o = np.dot(out_h1, self.weights_encoding_decoding)
-            out_o = net_o.item((0,))
-            y_pred += [out_o]
+            X_index = np.array([X_tst[index]])
+            out_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
+            out_o = np.dot(out_h1, self.weights_encoding_decoding)
+            y_pred += [out_o[0]]
 
         return y_pred, y_truth
 
+    # Sets the weights based on the training set and makes predictions based on the test set
     def fit_predict(self, df_trn, df_tst, label_columns):
         self.fit(df_trn, label_columns)
         y_pred, y_truth = self.predict(df_tst, label_columns)
         return y_pred, y_truth
 
-    # Pseudocode pg294
-    # https://blog.yani.ai/deltarule/
+    # Conducts the forward and back propagation thru the autoencoder
     def autoencode_propagate(self, X_trn, y_trn, verbose=False):
-        #print(np.shape(X_trn))
 
         # For each sample from the training data
         for index in range(len(X_trn)):
