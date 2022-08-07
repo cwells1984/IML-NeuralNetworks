@@ -194,6 +194,7 @@ class AutoEncodedRegressor:
         self.weights_encoding_hidden1 = None
         self.weights_hidden1_output = None
 
+    # Sets the network weights based on the training set
     def fit(self, df, label_columns):
 
         # Initialize the weights
@@ -240,8 +241,6 @@ class AutoEncodedRegressor:
             if mean_distances < last_distance:
                 last_distance = mean_distances
             else:
-                print(f"loss= {mean_distances}")
-                print(f"typ distance= {eval.eval_distance([X_trn[0]], [X_trn[-1]])}")
                 optimal_distance_reached = True
 
         # now with the encoded_out of the encoding layer and its corresponding labels, run through a feed forward network
@@ -318,6 +317,7 @@ class AutoEncodedRegressor:
             self.weights_input_encoding = self.weights_input_encoding - (self.encode_learn_rate * delta_weights_input_encoding)
             self.weights_encoding_decoding = self.weights_encoding_decoding - (self.encode_learn_rate * delta_weights_encoding_decoding)
 
+    # Conducts the forward and back propagation thru the 1-layer neural network fed by the encoder
     def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
 
         # For each sample from the training data
@@ -336,7 +336,7 @@ class AutoEncodedRegressor:
 
             # Now Back-propagate
             deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_trn[index]
+            error = out_o - y_index
             delta_h1 = np.multiply(np.dot(error, self.weights_hidden1_output.T), deriv_h1)
             delta_weights_hidden1_output = np.dot(out_h1.T, error)
             delta_weights_encoding_hidden1 = np.dot(X_index.T, delta_h1)
