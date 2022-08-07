@@ -6,6 +6,7 @@ import pandas as pd
 import eval
 
 
+# Applies the sigmoid function to each element in the input matrix
 def sigmoid_function(o):
 
     r = copy.deepcopy(o)
@@ -29,6 +30,25 @@ class AutoEncodedNetwork:
         self.weights_encoding_hidden1 = None
         self.weights_hidden1_output = None
         self.type = type
+        self.min_loss = 0.01
+
+    # Propagates an input matrix X through the Encoding layer, then the decoding layer
+    def autoencoder_forward(self, X):
+        net_h1 = np.array(np.dot(X, self.weights_input_encoding))
+        out_h1 = sigmoid_function(net_h1)
+        net_o = np.dot(out_h1, self.weights_encoding_decoding)
+        out_o = sigmoid_function(net_o)
+
+        return net_h1, out_h1, net_o, out_o
+
+    # Propagates an input matrix from the Encoding layer through the Hidden Layer, then to the output
+    def network_forward(self, X):
+        net_h1 = np.array(np.dot(X, self.weights_encoding_hidden1))
+        out_h1 = sigmoid_function(net_h1)
+        net_o = np.dot(out_h1, self.weights_hidden1_output)
+        out_o = sigmoid_function(net_o)
+
+        return net_h1, out_h1, net_o, out_o
 
     # Sets the network weights based on the training set
     def fit(self, df, label_columns):
@@ -50,8 +70,6 @@ class AutoEncodedNetwork:
             df_X_trn = copy.deepcopy(df)
             df_X_trn = df_X_trn.sample(frac=1)
 
-            y_trn = df_X_trn[label_columns].values
-
             for label_column in label_columns:
                 df_X_trn = df_X_trn.loc[:, df_X_trn.columns != label_column]
             X_trn = df_X_trn.values
@@ -64,19 +82,17 @@ class AutoEncodedNetwork:
             decoded_out = []
             for index in range(len(X_trn)):
                 X_index = np.array([X_trn[index]])
-                net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
-                out_h1 = sigmoid_function(net_h1)
+                net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_index)
                 encoded_out += [out_h1[0]]
-                net_o = np.dot(out_h1, self.weights_encoding_decoding)
-                out_o = sigmoid_function(net_o)
                 decoded_out += [out_o[0]]
 
             # Get the mean of all the distances of the decoded features to the training features
             mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
 
-            if mean_distances < last_distance:
+            if mean_distances < last_distance and mean_distances > self.min_loss:
                 last_distance = mean_distances
             else:
+                print(f"Autoencoded with mean loss= {mean_distances:.2f}")
                 optimal_distance_reached = True
 
         # now with the encoded_out of the encoding layer and its corresponding labels, run through a feed forward network
@@ -88,22 +104,33 @@ class AutoEncodedNetwork:
 
         while optimal_score_reached == False:
 
+            # After shuffling the rows in the dataframe, extract the matrix of input data X and output data y
+            df_X_trn = copy.deepcopy(df)
+            df_X_trn = df_X_trn.sample(frac=1)
+            y_trn = df[label_columns].values
+
+            for label_column in label_columns:
+                df_X_trn = df_X_trn.loc[:, df_X_trn.columns != label_column]
+            X_trn = df_X_trn.values
+
+            # Get the encoded values of X
+            net_encoded, out_encoded, net_decoded, out_decoded = self.autoencoder_forward(X_trn)
+
             # Modify the weights here
-            self.forward_and_back_propagate(np.array(encoded_out), y_trn, verbose=False)
+            self.forward_and_back_propagate(np.array(net_encoded), y_trn, verbose=False)
 
             # Now check the performance
-            h1 = np.dot(encoded_out, self.weights_encoding_hidden1)
-            out = np.dot(h1, self.weights_hidden1_output)
+            net_h1, out_h1, net_o, out_o = self.network_forward(net_encoded)
 
             # Calculate score
             if (self.type == 'Classifier'):
-                score = eval.eval_softmax(y_trn, out)
+                score = eval.eval_softmax(y_trn, net_o)
                 if score > last_score:
                     last_score = score
                 else:
                     optimal_score_reached = True
             else:
-                score = eval.eval_mse(y_trn, out)[0]
+                score = eval.eval_mse(y_trn, net_o)[0]
 
                 if score < last_score:
                     last_score = score
@@ -145,13 +172,8 @@ class AutoEncodedNetwork:
             X_index = np.array([X_trn[index]])
             y_index = y_trn[index]
 
-            # Forward X -> Encoding
-            net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
-            out_h1 = sigmoid_function(net_h1)
-
-            # Encoding -> Decoding
-            net_o = np.dot(out_h1, self.weights_encoding_decoding)
-            out_o = sigmoid_function(net_o)
+            # First forward thru the network
+            net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_index)
 
             # Now Back-propagate
             deriv_h1 = out_h1 * (1 - out_h1)
@@ -173,13 +195,8 @@ class AutoEncodedNetwork:
             X_index = np.array([X_trn[index]])
             y_index = y_trn[index]
 
-            # Encoding -> Hidden Layer 1
-            net_h1 = np.array(np.dot(X_index, self.weights_encoding_hidden1))
-            out_h1 = sigmoid_function(net_h1)
-
-            # Hidden Layer 1 -> Output
-            net_o = np.dot(out_h1, self.weights_hidden1_output)
-            out_o = sigmoid_function(net_o)
+            # First forward thru the network
+            net_h1, out_h1, net_o, out_o = self.network_forward(X_index)
 
             # Now Back-propagate
             deriv_h1 = out_h1 * (1 - out_h1)
