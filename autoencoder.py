@@ -8,12 +8,12 @@ import eval
 
 def sigmoid_function(o):
 
-    r = []
+    r = copy.deepcopy(o)
+    for i in range(np.shape(o)[0]):
+        for j in range(np.shape(o)[1]):
+            r[i][j] = 1 / (1 + np.exp(-1 * o[i][j]))
 
-    for i in range(np.shape(o)[1]):
-        r += [1 / (1 + np.exp(-1 * o.item((0, i))))]
-
-    return np.array(r)
+    return r
 
 
 class AutoEncodedClassifier:
@@ -226,12 +226,14 @@ class AutoEncodedRegressor:
             encoded_out = []
             decoded_out = []
             for index in range(len(X_trn)):
-                net_h1 = np.matrix(np.dot(X_trn[index], self.weights_input_encoding))
+                X_index = np.array([X_trn[index]])
+                net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
                 out_h1 = sigmoid_function(net_h1)
-                encoded_out += [out_h1]
-                net_o = np.matrix(np.dot(out_h1, self.weights_encoding_decoding))
+                encoded_out += [out_h1[0]]
+                net_o = np.dot(out_h1, self.weights_encoding_decoding)
                 out_o = sigmoid_function(net_o)
-                decoded_out += [out_o]
+                decoded_out += [out_o[0]]
+
             mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
 
             if mean_distances < last_distance:
@@ -247,7 +249,7 @@ class AutoEncodedRegressor:
         while optimal_mse_reached == False:
 
             # Modify the weights here
-            self.forward_and_back_propagate(encoded_out, y_trn, verbose=False)
+            self.forward_and_back_propagate(np.array(encoded_out), y_trn, verbose=False)
 
             # Now check the performance
             h1 = np.dot(encoded_out, self.weights_encoding_hidden1)
@@ -286,24 +288,28 @@ class AutoEncodedRegressor:
     # Pseudocode pg294
     # https://blog.yani.ai/deltarule/
     def autoencode_propagate(self, X_trn, y_trn, verbose=False):
+        #print(np.shape(X_trn))
 
         # For each sample from the training data
         for index in range(len(X_trn)):
 
+            X_index = np.array([X_trn[index]])
+            y_index = y_trn[index]
+
             # Forward X -> Encoding
-            net_h1 = np.matrix(np.dot(X_trn[index], self.weights_input_encoding))
+            net_h1 = np.array(np.dot(X_index, self.weights_input_encoding))
             out_h1 = sigmoid_function(net_h1)
 
             # Encoding -> Decoding
-            net_o = np.matrix(np.dot(out_h1, self.weights_encoding_decoding))
-            out_o = np.matrix(sigmoid_function(net_o))
+            net_o = np.dot(out_h1, self.weights_encoding_decoding)
+            out_o = sigmoid_function(net_o)
 
             # Now Back-propagate
             deriv_h1 = out_h1 * (1 - out_h1)
-            error = out_o - y_trn[index]
+            error = out_o - y_index
             delta_h1 = np.multiply(np.dot(error, self.weights_encoding_decoding.T), deriv_h1)
-            delta_weights_encoding_decoding = np.dot(np.matrix(out_h1).T, error)
-            delta_weights_input_encoding = np.dot(np.matrix(X_trn[index]).T, delta_h1)
+            delta_weights_encoding_decoding = np.dot(out_h1.T, error)
+            delta_weights_input_encoding = np.dot(X_index.T, delta_h1)
 
             # Now that the entire training set is run through, update
             self.weights_input_encoding = self.weights_input_encoding - (self.encode_learn_rate * delta_weights_input_encoding)
@@ -314,20 +320,23 @@ class AutoEncodedRegressor:
         # For each sample from the training data
         for index in range(len(X_trn)):
 
+            X_index = np.array([X_trn[index]])
+            y_index = y_trn[index]
+
             # Encoding -> Hidden Layer 1
-            net_h1 = np.matrix(np.dot(X_trn[index], self.weights_encoding_hidden1))
+            net_h1 = np.array(np.dot(X_index, self.weights_encoding_hidden1))
             out_h1 = sigmoid_function(net_h1)
 
             # Hidden Layer 1 -> Output
-            net_o = np.matrix(np.dot(out_h1, self.weights_hidden1_output))
-            out_o = np.matrix(sigmoid_function(net_o))
+            net_o = np.dot(out_h1, self.weights_hidden1_output)
+            out_o = sigmoid_function(net_o)
 
             # Now Back-propagate
             deriv_h1 = out_h1 * (1 - out_h1)
             error = out_o - y_trn[index]
             delta_h1 = np.multiply(np.dot(error, self.weights_hidden1_output.T), deriv_h1)
-            delta_weights_hidden1_output = np.dot(np.matrix(out_h1).T, error)
-            delta_weights_encoding_hidden1 = np.dot(np.matrix(X_trn[index]).T, delta_h1)
+            delta_weights_hidden1_output = np.dot(out_h1.T, error)
+            delta_weights_encoding_hidden1 = np.dot(X_index.T, delta_h1)
 
             # Now that the entire training set is run through, update
             self.weights_encoding_hidden1 = self.weights_encoding_hidden1 - (self.learn_rate * delta_weights_encoding_hidden1)
