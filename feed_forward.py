@@ -92,6 +92,17 @@ class FeedForwardNetwork:
         y_pred, y_truth = self.predict(df_tst, label_columns)
         return y_pred, y_truth
 
+    # Propagates an input matrix from the Input through the hidden layers, then to the output
+    def network_forward(self, X):
+        net_h1 = np.array(np.dot(X, self.weights_input_hidden1))
+        out_h1 = sigmoid_function(net_h1)
+        net_h2 = np.array(np.dot(out_h1, self.weights_hidden1_hidden2))
+        out_h2 = sigmoid_function(net_h2)
+        net_o = np.dot(out_h2, self.weights_hidden2_output)
+        out_o = sigmoid_function(net_o)
+
+        return net_h1, out_h1, net_h2, out_h2, net_o, out_o
+
     # Pseudocode pg294
     # https://blog.yani.ai/deltarule/
     def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
@@ -104,17 +115,8 @@ class FeedForwardNetwork:
             delta_weights_hidden1_hidden2 = np.zeros((self.num_hidden1, self.num_hidden2))
             delta_weights_hidden2_output = np.zeros((self.num_hidden2, self.num_outputs))
 
-            # Forward X -> Hidden Layer 1
-            net_h1 = np.dot(self.weights_input_hidden1.T, X_trn[index].ravel())
-            out_h1 = sigmoid_function(net_h1)
-
-            # Hidden Layer 1 -> Hidden Layer 2
-            net_h2 = np.dot(self.weights_hidden1_hidden2.T, out_h1)
-            out_h2 = sigmoid_function(net_h2)
-
-            # Hidden Layer 2 -> Output
-            net_o = np.dot(self.weights_hidden2_output.T, out_h2)
-            out_o = sigmoid_function(net_o)
+            # First forward thru the network
+            net_h1, out_h1, net_h2, out_h2, net_o, out_o = self.network_forward(X_trn[index])
 
             # Back Propagate Output -> V weights
             deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
