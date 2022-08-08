@@ -223,8 +223,8 @@ class LinearRegressor:
         self.reg_value = reg_value
         self.weights = None
 
+    # Sets the network weights based on the training set
     def fit(self, df, label_column):
-        #print(f"Logistic regression on {len(df)} entries")
         num_columns = len(df.columns) - 1
         last_weights = np.zeros(num_columns)
         self.weights = np.random.uniform(size=num_columns, low=-.01, high=.01)
@@ -240,20 +240,16 @@ class LinearRegressor:
             weights_delta = np.zeros(num_columns)
 
             for i in range(0, len(X)):
-                #print(f"row {i}")
 
                 # calculate o to feed into sigmoid and get predicted y
                 o = 0
                 for j in range(0, num_columns):
                     o += self.weights[j] * X[i][j]
-                    #print(f"column {j} o={o}")
                 y += [o]
-                #print(f"column {j} o={o}, y={y[-1]}")
 
                 # update the weights_delta
                 for j in range(0, num_columns):
                     weights_delta[j] += (r[i] - y[-1]) * X[i][j]
-                #print(f"weights_delta= {weights_delta}")
 
                 # now update the weights
                 for j in range(0, num_columns):
@@ -262,10 +258,7 @@ class LinearRegressor:
                     self.weights[j] -= self.reg_value * self.weights[j]
 
             # check for convergence - did the mse increase?
-            #print(f"r= {r}")
-            #print(f"y= {y}")
             mse = eval.eval_mse(r, y)
-            #print(f"mse= {mse:.2f}")
 
             if mse <= last_mse:
                 does_not_converge = True
@@ -273,11 +266,8 @@ class LinearRegressor:
             else:
                 does_not_converge = False
 
-        #print(f"Converged! {mse} > {last_mse}")
-        #self.weights = last_weights
-
+    # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_column):
-        #print(f"Logistic regression on {len(df)} entries")
         num_columns = len(df.columns) - 1
 
         X = df.loc[:, df.columns != label_column].values
@@ -291,6 +281,7 @@ class LinearRegressor:
 
         return y_pred
 
+    # Sets the weights based on the training set and makes predictions based on the test set
     def fit_predict(self, df_trn, df_test, label_column):
         self.fit(df_trn, label_column)
         y_pred = self.predict(df_test, label_column)
