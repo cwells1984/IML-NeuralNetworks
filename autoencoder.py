@@ -186,8 +186,8 @@ class AutoEncodedNetwork:
             for h in range(len(error_h1)):
                 error_h1[h] = np.dot(deriv_and_error, self.weights_encoding_decoding[h, :])
             deriv_out_h1 = (out_h1 * (1 - out_h1))
-            for i in range(self.num_encoding):
-                for h in range(self.num_hidden1):
+            for i in range(self.num_columns):
+                for h in range(self.num_encoding):
                     delta_weights_input_encoding[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index, i]
 
             # Now that the entire training set is run through, update

@@ -2,7 +2,6 @@ import copy
 import eval
 import numpy as np
 import pandas as pd
-from feed_forward import FeedForwardRegressor
 
 
 # Train a model on k-1 partitions and test on the remaining k-fold for each k-fold, returning an array of scores
