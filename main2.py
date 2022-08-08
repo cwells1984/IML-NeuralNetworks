@@ -6,8 +6,7 @@ import copy
 
 import pandas
 
-from feed_forward import FeedForwardClassifier
-from feed_forward import FeedForwardRegressor
+from feed_forward import FeedForwardNetwork
 import dataprep
 import eval
 import numpy as np
@@ -25,7 +24,7 @@ if __name__ == '__main__':
     print("ABALONE")
     df_abalone = dataprep.prepare_abalone('datasets/abalone.data')
     df_abalone_partitions = preprocessing.df_partition(df_abalone, 5)
-    ff = FeedForwardRegressor(learn_rate=0.0001, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.0001, num_hidden1=3, num_hidden2=3, type='Regressor')
     scores = processing_feedforward.regression_cross_validation(df_abalone_partitions, ff, ['Rings'])
     print(f"Avg 5-Fold CV MSE: {np.mean(scores):.2f}")
     print("==============================\n")
@@ -40,7 +39,7 @@ if __name__ == '__main__':
         df_breast_part[i] = preprocessing.encode_onehot(df_breast_part[i], "Class")
 
     # now feed it into the classifier
-    ff = FeedForwardClassifier(learn_rate=0.01, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.01, num_hidden1=3, num_hidden2=3, type='Classifier')
     scores = processing_feedforward.classify_cross_validation(df_breast_part, ff, ['Class_0', 'Class_1'])
     print(f"Avg 5-Fold CV Accuracy: {np.mean(scores) * 100:.2f}%")
     print("==============================\n")
@@ -55,7 +54,7 @@ if __name__ == '__main__':
         df_car_part[i] = preprocessing.encode_onehot(df_car_part[i], "CAR")
 
     # now feed it into the classifier
-    ff = FeedForwardClassifier(learn_rate=0.01, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.01, num_hidden1=3, num_hidden2=3, type='Classifier')
     scores = processing_feedforward.classify_cross_validation(df_car_part, ff, ['CAR_unacc', 'CAR_acc', 'CAR_good', 'CAR_vgood'])
     print(f"Avg 5-Fold CV Accuracy: {np.mean(scores) * 100:.2f}%")
     print("==============================\n")
@@ -64,7 +63,7 @@ if __name__ == '__main__':
     print("FOREST FIRES")
     df_forest = dataprep.prepare_forestfires('datasets/forestfires.data')
     df_forest_partitions = preprocessing.df_partition(df_forest, 5)
-    ff = FeedForwardRegressor(learn_rate=0.001, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.001, num_hidden1=3, num_hidden2=3, type='Regressor')
     scores = processing_feedforward.regression_cross_validation(df_forest_partitions, ff, ['area'])
     print(f"Avg 5-Fold CV MSE: {np.mean(scores):.2f}")
     print("==============================\n")
@@ -78,7 +77,7 @@ if __name__ == '__main__':
     for i in range(len(df_house_part)):
         df_house_part[i] = preprocessing.encode_onehot(df_house_part[i], "party")
 
-    ff = FeedForwardClassifier(learn_rate=0.1, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.1, num_hidden1=3, num_hidden2=3, type='Classifier')
     scores = processing_feedforward.classify_cross_validation(df_house_part, ff, ['party_0', 'party_1'])
     print(f"Avg 5-Fold CV Accuracy: {np.mean(scores) * 100:.2f}%")
     print("==============================\n")
@@ -87,7 +86,7 @@ if __name__ == '__main__':
     print("MACHINE")
     df_machine = dataprep.prepare_machine('datasets/machine.data')
     df_machine_partitions = preprocessing.df_partition(df_machine, 5)
-    ff = FeedForwardRegressor(learn_rate=0.1, num_hidden1=3, num_hidden2=3)
+    ff = FeedForwardNetwork(learn_rate=0.1, num_hidden1=3, num_hidden2=3, type='Regressor', training_cutoff=10)
     scores = processing_feedforward.regression_cross_validation(df_machine_partitions, ff, ['PRP'])
     print(f"Avg 5-Fold CV MSE: {np.mean(scores):.2f}")
     print("==============================\n")
