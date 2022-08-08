@@ -16,7 +16,7 @@ def sigmoid_function(o):
 
 class FeedForwardNetwork:
 
-    def __init__(self, learn_rate=0.5, num_hidden1=3, num_hidden2=3, type="Classifier"):
+    def __init__(self, learn_rate=0.5, num_hidden1=3, num_hidden2=3, type="Classifier", training_cutoff=0.01):
         self.learn_rate = learn_rate
         self.num_columns = 0
         self.num_hidden1 = num_hidden1
@@ -25,6 +25,7 @@ class FeedForwardNetwork:
         self.weights_hidden1_hidden2 = None
         self.weights_hidden2_output = None
         self.type = type
+        self.training_cutoff = training_cutoff
 
     def fit(self, df, label_columns):
 
@@ -63,13 +64,17 @@ class FeedForwardNetwork:
             # Calculate score
             if (self.type == 'Classifier'):
                 score = eval.eval_softmax(y_trn, out)
-                if score > last_score:
+                diff = np.abs(score - last_score)
+
+                if score > last_score and diff > self.training_cutoff:
                     last_score = score
                 else:
                     optimal_score_reached = True
             else:
                 score = eval.eval_mse(y_trn, out)[0]
-                if score < last_score:
+                diff = np.abs(score - last_score)
+
+                if score < last_score and diff > self.training_cutoff:
                     last_score = score
                 else:
                     optimal_score_reached = True
