@@ -4,6 +4,7 @@ import numpy as np
 import preprocessing
 
 
+# Sigmoid function used for 2-class classification
 def sigmoid_function(o):
     if o < 0.5:
         return 0
@@ -11,6 +12,7 @@ def sigmoid_function(o):
         return 1
 
 
+# Softmax function
 def calc_exp(o):
     sum_exp = 0
     for i in range(len(o)):
@@ -32,14 +34,13 @@ class LinearMultiClassifier:
         self.num_classes = 0
         self.target_classes = []
 
+    # Sets the network weights based on the training set
     def fit(self, df, label_column):
         num_columns = len(df.columns) - 1
         self.num_classes = len(df[label_column].unique())
-        #print(f"Logistic regression on {len(df)} entries for {self.num_classes} target classes")
 
         last_weights = np.zeros((self.num_classes, num_columns))
         self.weights = np.random.uniform(size=(self.num_classes, num_columns), low=-.01, high=.01)
-        #print(f"weights before= {self.weights}")
         weights_delta = np.zeros((self.num_classes, num_columns))
 
         # Make a 2d array of the features
@@ -63,7 +64,6 @@ class LinearMultiClassifier:
             weights_delta = np.zeros((self.num_classes, num_columns))
 
             for i in range(0, len(X)):
-                #print(f"row {i}")
                 o = np.zeros(self.num_classes)
 
                 # for each class calculate o
@@ -91,7 +91,6 @@ class LinearMultiClassifier:
             for y_max in np.argmax(y, axis=1):
                 y_pred += [self.target_classes[y_max]]
             score = eval.eval_classification_score(r_single, y_pred)
-            #print(f"acc score= {score * 100:.2f}%")
 
             if score > last_score:
                 does_not_converge = True
@@ -99,11 +98,8 @@ class LinearMultiClassifier:
             else:
                 does_not_converge = False
 
-        #print(f"Converged! {score*100:.2f}% <= {last_score*100:.2f}%")
-        #print(f"weights after= {self.weights}")
-
+    # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_column):
-        #print(f"Logistic regression on {len(df)} entries")
         num_columns = len(df.columns) - 1
 
         X = df.loc[:, df.columns != label_column].values
@@ -127,6 +123,7 @@ class LinearMultiClassifier:
 
         return y_pred
 
+    # Sets the weights based on the training set and makes predictions based on the test set
     def fit_predict(self, df_trn, df_test, label_column):
         self.fit(df_trn, label_column)
         y_pred = self.predict(df_test, label_column)
@@ -140,12 +137,11 @@ class LinearClassifier:
         self.reg_value = reg_value
         self.weights = None
 
+    # Sets the network weights based on the training set
     def fit(self, df, label_column):
-        #print(f"Logistic regression on {len(df)} entries")
         num_columns = len(df.columns) - 1
         last_weights = np.zeros(num_columns)
         self.weights = np.random.uniform(size=num_columns, low=-.01, high=.01)
-        #print(f"weights before= {self.weights}")
         weights_delta = np.zeros(num_columns)
 
         X = df.loc[:, df.columns != label_column].values
@@ -158,20 +154,16 @@ class LinearClassifier:
             weights_delta = np.zeros(num_columns)
 
             for i in range(0, len(X)):
-                # print(f"row {i}")
 
                 # calculate o to feed into sigmoid and get predicted y
                 o = 0
                 for j in range(0, num_columns):
                     o += self.weights[j] * X[i][j]
-                    # print(f"column {j} o={o}")
                 y += [sigmoid_function(o)]
-                # print(f"column {j} o={o}, y={y[-1]}")
 
                 # update the weights_delta
                 for j in range(0, num_columns):
                     weights_delta[j] += (r[i] - y[-1]) * X[i][j]
-                # print(f"weights_delta= {weights_delta}")
 
                 # now update the weights
                 last_weights = copy.deepcopy(self.weights)
@@ -179,12 +171,8 @@ class LinearClassifier:
                     self.weights[j] += (self.learn_rate * weights_delta[j])
                     self.weights[j] -= self.reg_value * self.weights[j]
 
-                # print(f"r= {r}")
-                # print(f"y= {y}")
-
             # check for convergence - did the # of misclassifications decrease?
             score = eval.eval_classification_score(r, y)
-            #print(f"acc score= {score * 100:.2f}%")
 
             if score > last_score:
                 does_not_converge = True
@@ -192,11 +180,8 @@ class LinearClassifier:
             else:
                 does_not_converge = False
 
-        #print(f"Converged! {score*100:.2f}% < {last_score*100:.2f}%")
-        #print(f"weights after= {self.weights}")
-
+    # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_column):
-        #print(f"Logistic regression on {len(df)} entries")
         num_columns = len(df.columns) - 1
 
         X = df.loc[:, df.columns != label_column].values
@@ -210,6 +195,7 @@ class LinearClassifier:
 
         return y_pred
 
+    # Sets the weights based on the training set and makes predictions based on the test set
     def fit_predict(self, df_trn, df_test, label_column):
         self.fit(df_trn, label_column)
         y_pred = self.predict(df_test, label_column)
