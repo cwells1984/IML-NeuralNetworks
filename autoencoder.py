@@ -14,7 +14,7 @@ def sigmoid_function(o):
 
 class AutoEncodedNetwork:
 
-    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3, type="Classifier"):
+    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3, type="Classifier", training_cutoff=0.01):
         self.encode_learn_rate = encode_learn_rate
         self.learn_rate = learn_rate
         self.num_columns = 0
@@ -26,6 +26,7 @@ class AutoEncodedNetwork:
         self.weights_hidden1_output = None
         self.type = type
         self.min_loss = 0.01
+        self.training_cutoff = training_cutoff
 
     # Propagates an input matrix X through the Encoding layer, then the decoding layer
     def autoencoder_forward(self, X):
@@ -124,14 +125,17 @@ class AutoEncodedNetwork:
             # Calculate score
             if (self.type == 'Classifier'):
                 score = eval.eval_softmax(y_trn, out)
-                if score > last_score:
+                diff = np.abs(score - last_score)
+
+                if score > last_score and diff > self.training_cutoff:
                     last_score = score
                 else:
                     optimal_score_reached = True
             else:
                 score = eval.eval_mse(y_trn, out)[0]
+                diff=  np.abs(score - last_score)
 
-                if score < last_score:
+                if score < last_score and diff > self.training_cutoff:
                     last_score = score
                 else:
                     optimal_score_reached = True
