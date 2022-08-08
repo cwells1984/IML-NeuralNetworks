@@ -25,10 +25,18 @@ def classify_cross_validation(df_trn_partitions, model, label_columns):
         # Test the model and record its score
         y_pred, y_truth = model.fit_predict(df_trn_fold, df_test, label_columns)
 
+        # Record the softmax values of y_pred and y_truth
+        y_pred_sm = []
+        for y_pred_value in y_pred:
+            y_pred_sm += [np.argmax(eval.softmax(y_pred_value))]
+        y_truth_sm = []
+        for y_truth_value in y_truth:
+            y_truth_sm += [np.argmax(y_truth_value)]
+
         # Print details about this fold
         score = eval.eval_softmax(y_truth, y_pred)
         print(f'Fold {i+1}: Training on partitions {parts_in_fold} ({len(df_trn_fold)} entries), Testing on partition {i} ({len(df_test)} entries), Acc= {score*100:.2f}%')
-        print(f"Expected value of item 0 = {y_truth[0]}, Actual Value = {y_pred[0]}")
+        print(f"Expected value of item 0 = {y_truth_sm[0]}, Actual Value = {y_pred_sm[0]}")
         scores += [score]
 
     return scores

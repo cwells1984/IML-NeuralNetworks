@@ -35,7 +35,7 @@ class LinearMultiClassifier:
         self.target_classes = []
 
     # Sets the network weights based on the training set
-    def fit(self, df, label_column):
+    def fit(self, df, label_column, verbose=False):
         num_columns = len(df.columns) - 1
         self.num_classes = len(df[label_column].unique())
 
@@ -70,14 +70,20 @@ class LinearMultiClassifier:
                 for k in range(self.num_classes):
                     for j in range(num_columns):
                         o[k] += self.weights[k][j] * X[i][j]
+                        if verbose:
+                            print(f"output = {o[-1]}")
 
                 # calculate predicted values
                 y += [calc_exp(o)]
+                if verbose:
+                    print(f"y = exponential_function(o) = {y[-1]}")
 
                 # update weights delta
                 for k in range(self.num_classes):
                     for j in range(num_columns):
                         weights_delta[k][j] += (r[i][k] - y[-1][k]) * X[i][j]
+                        if verbose:
+                            print(f"Weight Delta: feature {j} to output {k} = {weights_delta[k][j]}")
 
             # Now update the weights
             last_weights = copy.deepcopy(self.weights)
@@ -138,10 +144,12 @@ class LinearClassifier:
         self.weights = None
 
     # Sets the network weights based on the training set
-    def fit(self, df, label_column):
+    def fit(self, df, label_column, verbose=False):
         num_columns = len(df.columns) - 1
         last_weights = np.zeros(num_columns)
         self.weights = np.random.uniform(size=num_columns, low=-.01, high=.01)
+        if verbose:
+            print(f"Old weights: feature 0 to output = {self.weights[0]}\n")
         weights_delta = np.zeros(num_columns)
 
         X = df.loc[:, df.columns != label_column].values
@@ -159,11 +167,18 @@ class LinearClassifier:
                 o = 0
                 for j in range(0, num_columns):
                     o += self.weights[j] * X[i][j]
+                if verbose:
+                    print(f"Output = {o}")
+
                 y += [sigmoid_function(o)]
+                if verbose:
+                    print(f"Y Output = {y[-1]}\n")
 
                 # update the weights_delta
                 for j in range(0, num_columns):
                     weights_delta[j] += (r[i] - y[-1]) * X[i][j]
+                if verbose:
+                    print(f"Weight Gradient: feature 0 to output = {weights_delta[0]}")
 
                 # now update the weights
                 last_weights = copy.deepcopy(self.weights)
@@ -171,8 +186,14 @@ class LinearClassifier:
                     self.weights[j] += (self.learn_rate * weights_delta[j])
                     self.weights[j] -= self.reg_value * self.weights[j]
 
+                if verbose:
+                    print(f"New weights: feature 0 to output = {self.weights[0]}")
+
             # check for convergence - did the # of misclassifications decrease?
             score = eval.eval_classification_score(r, y)
+
+            # only be verbose the first time thru the loop
+            verbose = False
 
             if score > last_score:
                 does_not_converge = True

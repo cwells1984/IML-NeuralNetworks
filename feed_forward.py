@@ -27,7 +27,7 @@ class FeedForwardNetwork:
         self.type = type
         self.training_cutoff = training_cutoff
 
-    def fit(self, df, label_columns):
+    def fit(self, df, label_columns, verbose=False):
 
         # Initialize the weights
         self.num_columns = len(df.columns) - len(label_columns)
@@ -54,7 +54,7 @@ class FeedForwardNetwork:
             X_trn = df_X_trn.values
 
             # Modify the weights here
-            self.forward_and_back_propagate(X_trn, y_trn, verbose=False)
+            self.forward_and_back_propagate(X_trn, y_trn, verbose=verbose)
 
             # Now check the performance
             h1 = np.dot(X_trn, self.weights_input_hidden1)
@@ -79,6 +79,9 @@ class FeedForwardNetwork:
                 else:
                     optimal_score_reached = True
 
+            # Only run verbose the first time thru the loop
+            verbose = False
+
     def predict(self, df, label_columns):
 
         df_X_tst = copy.deepcopy(df)
@@ -90,6 +93,7 @@ class FeedForwardNetwork:
         h1 = np.dot(X_tst, self.weights_input_hidden1)
         h2 = np.dot(h1, self.weights_hidden1_hidden2)
         y_pred = np.dot(h2, self.weights_hidden2_output)
+
         return y_pred, y_truth
 
     def fit_predict(self, df_trn, df_tst, label_columns):
@@ -112,6 +116,12 @@ class FeedForwardNetwork:
     # https://blog.yani.ai/deltarule/
     def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
 
+        # Print old weights
+        if verbose:
+            print(f"Old weights: feature 0 to hidden layer 1, node 0 = {self.weights_input_hidden1[0][0]}")
+            print(f"Old weights: hidden layer 1, node 0 to hidden layer 2, node 0 = {self.weights_hidden1_hidden2[0][0]}")
+            print(f"Old weights: hidden layer 2, node 0 to output node 0 = {self.weights_hidden2_output[0][0]}\n")
+
         # For each sample from the training data
         for index in range(len(X_trn)):
 
@@ -123,11 +133,20 @@ class FeedForwardNetwork:
             # First forward thru the network
             net_h1, out_h1, net_h2, out_h2, net_o, out_o = self.network_forward(X_trn[index])
 
+            if verbose:
+                print(f"Sigmoid output hidden layer 1, node 0 = {out_h1[0]}")
+                print(f"Sigmoid output hidden layer 2, node 0 = {out_h2[0]}")
+                print(f"Sigmoid output node 0 = {out_o[0]}\n")
+
             # Back Propagate Output -> V weights
             deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
             for h in range(self.num_hidden2):
                 for o in range(self.num_outputs):
                     delta_weights_hidden2_output[h][o] = -1 * deriv_and_error[o] * out_h2[h]
+
+            if verbose:
+                print(f"Output error * derivative = {deriv_and_error[0]}")
+                print(f"Weight Gradient: hidden layer 2, node 0 to output node 0 = {delta_weights_hidden2_output[0][0]}\n")
 
             # Back propagate Hidden Layer 2 -> Hidden Layer 1
             error_h2 = np.zeros(self.num_hidden2)
@@ -138,6 +157,10 @@ class FeedForwardNetwork:
                 for h2 in range(self.num_hidden2):
                     delta_weights_hidden1_hidden2[h1][h2] = -1 * error_h2[h2] * deriv_out_h2[h2] * out_h1[h1]
 
+            if verbose:
+                print(f"Hidden layer 2, node 0 error * derivative = {error_h2[0]}")
+                print(f"Weight Gradient: hidden layer 1, node 0 to hidden layer 2, node 0 = {delta_weights_hidden1_hidden2[0][0]}\n")
+
             # Back propagate Hidden Layer 1 -> Input
             error_h1 = np.zeros(self.num_hidden1)
             for h in range(len(error_h1)):
@@ -147,7 +170,21 @@ class FeedForwardNetwork:
                 for h in range(self.num_hidden1):
                     delta_weights_input_hidden1[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index, i]
 
+            if verbose:
+                print(f"Hidden layer 1, node 0 error * derivative = {error_h1[0]}")
+                print(f"Weight Gradient: feature 0 to hidden layer 1, node 0 = {delta_weights_input_hidden1[0][0]}\n")
+
             # Now that the entire training set is run through, update
             self.weights_input_hidden1 -= self.learn_rate * delta_weights_input_hidden1
             self.weights_hidden1_hidden2 -= self.learn_rate * delta_weights_hidden1_hidden2
             self.weights_hidden2_output -= self.learn_rate * delta_weights_hidden2_output
+
+            # Print new weights
+            if verbose:
+                print(f"New weights: feature 0 to hidden layer 1, node 0 = {self.weights_input_hidden1[0][0]}")
+                print(
+                    f"New weights: hidden layer 1, node 0 to hidden layer 2, node 0 = {self.weights_hidden1_hidden2[0][0]}")
+                print(f"New weights: hidden layer 2, node 0 to output node 0 = {self.weights_hidden2_output[0][0]}")
+
+            # Only show verbose for the first sample
+            verbose = False
