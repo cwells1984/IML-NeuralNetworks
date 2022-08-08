@@ -14,7 +14,7 @@ def sigmoid_function(o):
 
 class AutoEncodedNetwork:
 
-    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3, type="Classifier", training_cutoff=0.01):
+    def __init__(self, encode_learn_rate=0.5, learn_rate=0.5, num_encoding=3, num_hidden1=3, type="Classifier", min_loss=0.01, training_cutoff=0.01):
         self.encode_learn_rate = encode_learn_rate
         self.learn_rate = learn_rate
         self.num_columns = 0
@@ -25,7 +25,7 @@ class AutoEncodedNetwork:
         self.weights_encoding_hidden1 = None
         self.weights_hidden1_output = None
         self.type = type
-        self.min_loss = 0.01
+        self.min_loss = min_loss
         self.training_cutoff = training_cutoff
 
     # Propagates an input matrix X through the Encoding layer, then the decoding layer
@@ -47,7 +47,9 @@ class AutoEncodedNetwork:
         return net_h1, out_h1, net_o, out_o
 
     # Sets the network weights based on the training set
-    def fit(self, df, label_columns):
+    def fit(self, df, label_columns, verbose=False):
+
+        verbose_orig = verbose
 
         # Initialize the weights
         self.num_columns = len(df.columns) - len(label_columns)
@@ -70,8 +72,11 @@ class AutoEncodedNetwork:
                 df_X_trn = df_X_trn.loc[:, df_X_trn.columns != label_column]
             X_trn = df_X_trn.values
 
+            if verbose:
+                print(f"X[0] vector ({len(X_trn[0])} dimensions) = {X_trn[0]}\n")
+
             # Modify the weights here
-            self.autoencode_propagate(X_trn, X_trn, verbose=False)
+            self.autoencode_propagate(X_trn, X_trn, verbose=verbose)
 
             # Now check the performance
             encoded_out = []
@@ -82,6 +87,9 @@ class AutoEncodedNetwork:
                 encoded_out += [out_h1]
                 decoded_out += [out_o]
 
+            if verbose:
+                print(f"Reconstructed X[0] vector ({len(decoded_out[0])} dimensions) = {decoded_out[0]}\n")
+
             # Get the mean of all the distances of the decoded features to the training features
             mean_distances = np.mean(eval.eval_distance(X_trn, decoded_out))
 
@@ -90,6 +98,12 @@ class AutoEncodedNetwork:
             else:
                 print(f"Autoencoded with mean loss= {mean_distances:.2f}")
                 optimal_distance_reached = True
+
+            # Only run verbose the first time thru the loop
+            verbose = False
+
+        # reset verbose
+        verbose = verbose_orig
 
         # now with the encoded_out of the encoding layer and its corresponding labels, run through a feed forward network
         optimal_score_reached = False
@@ -116,7 +130,7 @@ class AutoEncodedNetwork:
                 encoded_input += [out_h1]
 
             # Modify the weights here
-            self.forward_and_back_propagate(encoded_input, y_trn, verbose=False)
+            self.forward_and_back_propagate(encoded_input, y_trn, verbose=verbose)
 
             # Now check the performance
             h1 = np.dot(encoded_input, self.weights_encoding_hidden1)
@@ -139,6 +153,9 @@ class AutoEncodedNetwork:
                     last_score = score
                 else:
                     optimal_score_reached = True
+
+            # Only run verbose the first time thru the loop
+            verbose = False
 
     # Using the existing weights, make predictions with a testing set
     def predict(self, df, label_columns):
@@ -172,6 +189,11 @@ class AutoEncodedNetwork:
         # For each sample from the training data
         for index in range(len(X_trn)):
 
+            # Print old weights
+            if verbose:
+                print(f"Old weights: feature 0 to encode layer, node 0 = {self.weights_input_encoding[0][0]}")
+                print(f"Old weights: encode layer, node 0 to decode layer, node 0 = {self.weights_encoding_decoding[0][0]}\n")
+
             # Calculate updated weights in a new matrix - we want the originals for further back-propagation
             delta_weights_input_encoding = np.zeros((self.num_columns, self.num_encoding))
             delta_weights_encoding_decoding = np.zeros((self.num_encoding, self.num_columns))
@@ -179,11 +201,19 @@ class AutoEncodedNetwork:
             # First forward thru the network
             net_h1, out_h1, net_o, out_o = self.autoencoder_forward(X_trn[index])
 
+            if verbose:
+                print(f"Sigmoid output encode layer, node 0 = {out_h1[0]}")
+                print(f"Sigmoid output decode layer, node 0 = {out_o[0]}\n")
+
             # Back Propagate Decoding -> Encoding
             deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
             for h in range(self.num_encoding):
                 for o in range(self.num_columns):
                     delta_weights_encoding_decoding[h][o] = -1 * deriv_and_error[o] * out_h1[h]
+
+            if verbose:
+                print(f"Output error * derivative = {deriv_and_error[0]}")
+                print(f"Weight Gradient: encoding layer, node 0 to decoding layer, node 0 = {delta_weights_encoding_decoding[0][0]}\n")
 
             # Back propagate Encoding -> Input
             error_h1 = np.zeros(self.num_encoding)
@@ -194,15 +224,33 @@ class AutoEncodedNetwork:
                 for h in range(self.num_encoding):
                     delta_weights_input_encoding[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index, i]
 
+            if verbose:
+                print(f"Encoding layer, node 0 error * derivative = {error_h1[0]}")
+                print(f"Weight Gradient: feature 0 to encoding layer, node 0 = {delta_weights_input_encoding[0][0]}\n")
+
             # Now that the entire training set is run through, update
             self.weights_input_encoding -= self.encode_learn_rate * delta_weights_input_encoding
             self.weights_encoding_decoding -= self.encode_learn_rate * delta_weights_encoding_decoding
+
+            # Print old weights
+            if verbose:
+                print(f"New weights: feature 0 to encode layer, node 0 = {self.weights_input_encoding[0][0]}")
+                print(
+                    f"New weights: encode layer, node 0 to decode layer, node 0 = {self.weights_encoding_decoding[0][0]}\n")
+
+            # Only show verbose for the first sample
+            verbose = False
 
     # Conducts the forward and back propagation thru the 1-layer neural network fed by the encoder
     def forward_and_back_propagate(self, X_trn, y_trn, verbose=False):
 
         # For each sample from the training data
         for index in range(len(X_trn)):
+
+            # Print old weights
+            if verbose:
+                print(f"Old weights: encoding layer, node 0 to hidden layer 1, node 0 = {self.weights_encoding_hidden1[0][0]}")
+                print(f"Old weights: hidden layer 1, node 0 to output node 0 = {self.weights_hidden1_output[0][0]}\n")
 
             # Calculate updated weights in a new matrix - we want the originals for further back-propagation
             delta_weights_encoding_hidden1 = np.zeros((self.num_encoding, self.num_hidden1))
@@ -211,11 +259,19 @@ class AutoEncodedNetwork:
             # First forward thru the network
             net_h1, out_h1, net_o, out_o = self.network_forward(X_trn[index])
 
+            if verbose:
+                print(f"Sigmoid output hidden layer 1, node 0 = {out_h1[0]}")
+                print(f"Sigmoid output node 0 = {out_o[0]}\n")
+
             # Back Propagate Output -> Hidden Layer 1
             deriv_and_error = (y_trn[index] - out_o) * out_o * (1 - out_o)
             for h in range(self.num_hidden1):
                 for o in range(self.num_outputs):
                     delta_weights_hidden1_output[h][o] = -1 * deriv_and_error[o] * out_h1[h]
+
+            if verbose:
+                print(f"Output error * derivative = {deriv_and_error[0]}")
+                print(f"Weight Gradient: hidden layer 1, node 0 to output node 0 = {delta_weights_hidden1_output[0][0]}\n")
 
             # Back propagate Hidden Layer 1 -> Encoding
             error_h1 = np.zeros(self.num_hidden1)
@@ -226,6 +282,18 @@ class AutoEncodedNetwork:
                 for h in range(self.num_hidden1):
                     delta_weights_encoding_hidden1[i][h] = -1 * error_h1[h] * deriv_out_h1[h] * X_trn[index][i]
 
+            if verbose:
+                print(f"Hidden layer 1, node 0 error * derivative = {error_h1[0]}")
+                print(f"Weight Gradient: encode layer, node 0 to hidden layer 1, node 0 = {delta_weights_encoding_hidden1[0][0]}\n")
+
             # Now that the entire training set is run through, update
             self.weights_encoding_hidden1 -= self.learn_rate * delta_weights_encoding_hidden1
             self.weights_hidden1_output -= self.learn_rate * delta_weights_hidden1_output
+
+            # Print old weights
+            if verbose:
+                print(f"New weights: encoding layer, node 0 to hidden layer 1, node 0 = {self.weights_encoding_hidden1[0][0]}")
+                print(f"New weights: hidden layer 1, node 0 to output node 0 = {self.weights_hidden1_output[0][0]}\n")
+
+            # Only show verbose for the first sample
+            verbose = False

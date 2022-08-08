@@ -36,7 +36,8 @@ def classify_cross_validation(df_trn_partitions, model, label_columns):
         # Print details about this fold
         score = eval.eval_softmax(y_truth, y_pred)
         print(f'Fold {i+1}: Training on partitions {parts_in_fold} ({len(df_trn_fold)} entries), Testing on partition {i} ({len(df_test)} entries), Acc= {score*100:.2f}%')
-        print(f"Expected value of item 0 = {y_truth_sm[0]}, Actual Value = {y_pred_sm[0]}")
+        if i == 0:
+            print(f"Expected value of item 0 = {y_truth_sm[0]}, Actual Value = {y_pred_sm[0]}")
         scores += [score]
 
     return scores
@@ -66,7 +67,8 @@ def regression_cross_validation(df_trn_partitions, model, label_columns):
         # Print details about this fold
         score = eval.eval_mse(y_truth, y_pred)[0]
         print(f'Fold {i+1}: Training on partitions {parts_in_fold} ({len(df_trn_fold)} entries), Testing on partition {i} ({len(df_test)} entries), MSE= {score:.2f}')
-        print(f"Expected value of item 0 = {y_truth[0]:.2f}, Actual Value = {y_pred[0]:.2f}")
+        if i == 0:
+            print(f"Expected value of item 0 = {y_truth[0][0]:.2f}, Actual Value = {y_pred[0][0]:.2f}")
         scores += [score]
 
     return scores
